@@ -1,0 +1,253 @@
+require("dotenv").config();
+
+const express = require("express");
+const { MongoClient, ObjectId } = require("mongodb");
+
+const PORT = process.env.PORT;
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!PORT) {
+  console.error("PORT is not defined in .env");
+  process.exit(1);
+}
+
+if (!MONGO_URI) {
+  console.error("MONGO_URI is not defined in .env");
+  process.exit(1);
+}
+
+const app = express();
+
+const DB_NAME = "shop";
+const COLLECTION_NAME = "products";
+
+let productsCollection;
+
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
+app.use(express.json());
+
+async function connectDB() {
+  const client = new MongoClient(MONGO_URI);
+  await client.connect();
+  const db = client.db(DB_NAME);
+  productsCollection = db.collection(COLLECTION_NAME);
+}
+
+app.get("/", (req, res) => {
+  res.status(200).json({
+    name: "Shop API",
+    endpoints: {
+      list: "GET /api/products",
+      get: "GET /api/products/:id",
+      create: "POST /api/products",
+      update: "PUT /api/products/:id",
+      remove: "DELETE /api/products/:id",
+    },
+  });
+});
+
+app.get("/api/products", async (req, res) => {
+  try {
+    const { category, minPrice, sort, fields } = req.query;
+
+    const filter = {};
+
+    if (typeof category === "string" && category.trim() !== "") {
+      filter.category = category.trim();
+    }
+
+    if (minPrice !== undefined) {
+      const min = Number(minPrice);
+      if (Number.isNaN(min)) {
+        return res.status(400).json({ error: "minPrice must be a number" });
+      }
+      filter.price = { $gte: min };
+    }
+
+    let sortSpec;
+    if (sort !== undefined) {
+      if (sort === "price") sortSpec = { price: 1 };
+      else return res.status(400).json({ error: "sort only supports: price" });
+    }
+
+    let projection;
+    if (typeof fields === "string" && fields.trim() !== "") {
+      const parts = fields
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean);
+      if (parts.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "fields must contain at least one field name" });
+      }
+      projection = {};
+      for (const f of parts) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(f)) {
+          return res
+            .status(400)
+            .json({ error: `Invalid field name in fields: ${f}` });
+        }
+        projection[f] = 1;
+      }
+    }
+
+    let cursor = productsCollection.find(filter);
+    if (projection) cursor = cursor.project(projection);
+    if (sortSpec) cursor = cursor.sort(sortSpec);
+
+    const products = await cursor.toArray();
+    res.status(200).json({ count: products.length, products });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+
+    const product = await productsCollection.findOne({ _id: new ObjectId(id) });
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.status(200).json(product);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/api/products", async (req, res) => {
+  try {
+    const { name, price, category } = req.body;
+
+    if (
+      typeof name !== "string" ||
+      name.trim() === "" ||
+      typeof category !== "string" ||
+      category.trim() === "" ||
+      typeof price !== "number" ||
+      Number.isNaN(price)
+    ) {
+      return res.status(400).json({
+        error:
+          "Missing or invalid fields. Required: name (string), price (number), category (string)",
+      });
+    }
+
+    const newProduct = {
+      name: name.trim(),
+      price,
+      category: category.trim(),
+    };
+
+    const result = await productsCollection.insertOne(newProduct);
+
+    res.status(201).json({
+      _id: result.insertedId,
+      ...newProduct,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.put("/api/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+
+    const update = {};
+    const { name, price, category } = req.body;
+
+    if (name !== undefined) {
+      if (typeof name !== "string" || name.trim() === "") {
+        return res
+          .status(400)
+          .json({ error: "name must be a non-empty string" });
+      }
+      update.name = name.trim();
+    }
+
+    if (category !== undefined) {
+      if (typeof category !== "string" || category.trim() === "") {
+        return res
+          .status(400)
+          .json({ error: "category must be a non-empty string" });
+      }
+      update.category = category.trim();
+    }
+
+    if (price !== undefined) {
+      if (typeof price !== "number" || Number.isNaN(price)) {
+        return res.status(400).json({ error: "price must be a number" });
+      }
+      update.price = price;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res
+        .status(400)
+        .json({ error: "Provide at least one field to update" });
+    }
+
+    const result = await productsCollection.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: update },
+      { returnDocument: "after" },
+    );
+
+    if (!result.value) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.status(200).json(result.value);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.delete("/api/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+
+    const result = await productsCollection.deleteOne({
+      _id: new ObjectId(id),
+    });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.status(200).json({ message: "Product deleted" });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: "API endpoint not found" });
+});
+
+connectDB()
+  .then(() => {
+    app.listen(PORT, "0.0.0.0");
+  })
+  .catch(() => {
+    process.exit(1);
+  });
