@@ -7,5 +7,20 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "mongodb": "^7.0.0"
-  }
+  },
+  "name": "practice11",
+  "version": "1.0.0",
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bnursik/aitu-back-practice11.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/bnursik/aitu-back-practice11/issues"
+  },
+  "homepage": "https://github.com/bnursik/aitu-back-practice11#readme"
 }
