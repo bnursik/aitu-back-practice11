@@ -265,6 +265,19 @@ app.delete("/api/products/:id", async (req, res) => {
   }
 });
 
+app.get("/api/version", (req, res) => {
+  res.status(200).json({
+    version: "1.1",
+    updatedAt: new Date().toISOString(),
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+  });
+});
+
 app.use((req, res) => {
   res.status(404).json({ error: "API endpoint not found" });
 });
