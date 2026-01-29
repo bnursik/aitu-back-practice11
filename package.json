@@ -1,16 +1,12 @@
 {
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "mongodb": "^7.0.0"
-  },
   "name": "practice11",
   "version": "1.0.0",
   "description": "",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bnursik/aitu-back-practice11.git"
@@ -22,5 +18,14 @@
   "bugs": {
     "url": "https://github.com/bnursik/aitu-back-practice11/issues"
   },
-  "homepage": "https://github.com/bnursik/aitu-back-practice11#readme"
+  "homepage": "https://github.com/bnursik/aitu-back-practice11#readme",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mongodb": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "nodemon": "^3.1.11"
+  }
 }

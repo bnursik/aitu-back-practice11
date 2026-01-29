@@ -1,81 +1,7 @@
-require("dotenv").config();
+const { getProductsCollection } = require("../db/products");
+const { ObjectId } = require("mongodb");
 
-const express = require("express");
-const { MongoClient, ObjectId } = require("mongodb");
-
-const PORT = process.env.PORT;
-const MONGO_URI = process.env.MONGO_URI;
-
-if (!PORT) {
-  console.error("PORT is not defined in .env");
-  process.exit(1);
-}
-
-if (!MONGO_URI) {
-  console.error("MONGO_URI is not defined in .env");
-  process.exit(1);
-}
-
-const app = express();
-
-const DB_NAME = "shop";
-const COLLECTION_NAME = "products";
-
-let productsCollection;
-
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
-  next();
-});
-
-app.use(express.json());
-
-async function connectDB() {
-  const client = new MongoClient(MONGO_URI);
-  await client.connect();
-  const db = client.db(DB_NAME);
-  productsCollection = db.collection(COLLECTION_NAME);
-}
-
-app.get("/", (req, res) => {
-  res.status(200).type("html").send(`<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Shop API</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 32px; line-height: 1.5; }
-    .card { max-width: 720px; border: 1px solid #ddd; border-radius: 12px; padding: 20px; }
-    h1 { margin: 0 0 12px; }
-    code { background: #f6f8fa; padding: 2px 6px; border-radius: 6px; }
-    ul { margin: 12px 0 0; padding-left: 18px; }
-    a { text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .muted { color: #666; font-size: 14px; margin-top: 12px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Shop API</h1>
-    <p>Endpoints:</p>
-    <ul>
-      <li><code>GET</code> <a href="/api/products">/api/products</a></li>
-      <li><code>GET</code> <code>/api/products/:id</code> <span class="muted"></span></li>
-      <li><code>POST</code> <code>/api/products</code></li>
-      <li><code>PUT</code> <code>/api/products/:id</code></li>
-      <li><code>DELETE</code> <code>/api/products/:id</code></li>
-    </ul>
-
-    <p class="muted">
-      Tip: try <a href="/api/products?sort=price&fields=name,price">/api/products?sort=price&fields=name,price</a>
-    </p>
-  </div>
-</body>
-</html>`);
-});
-
-app.get("/api/products", async (req, res) => {
+async function listProductsHandler(req, res) {
   try {
     const { category, minPrice, sort, fields } = req.query;
 
@@ -121,6 +47,7 @@ app.get("/api/products", async (req, res) => {
       }
     }
 
+    const productsCollection = getProductsCollection();
     let cursor = productsCollection.find(filter);
     if (projection) cursor = cursor.project(projection);
     if (sortSpec) cursor = cursor.sort(sortSpec);
@@ -130,9 +57,9 @@ app.get("/api/products", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }
-});
+}
 
-app.get("/api/products/:id", async (req, res) => {
+async function getProductByIdHandler(req, res) {
   try {
     const { id } = req.params;
 
@@ -140,6 +67,7 @@ app.get("/api/products/:id", async (req, res) => {
       return res.status(400).json({ error: "Invalid product id" });
     }
 
+    const productsCollection = getProductsCollection();
     const product = await productsCollection.findOne({ _id: new ObjectId(id) });
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
@@ -149,9 +77,9 @@ app.get("/api/products/:id", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }
-});
+}
 
-app.post("/api/products", async (req, res) => {
+async function createProductHandler(req, res) {
   try {
     const { name, price, category } = req.body;
 
@@ -175,6 +103,7 @@ app.post("/api/products", async (req, res) => {
       category: category.trim(),
     };
 
+    const productsCollection = getProductsCollection();
     const result = await productsCollection.insertOne(newProduct);
 
     res.status(201).json({
@@ -184,9 +113,9 @@ app.post("/api/products", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }
-});
+}
 
-app.put("/api/products/:id", async (req, res) => {
+async function updateProductHandler(req, res) {
   try {
     const { id } = req.params;
 
@@ -227,7 +156,7 @@ app.put("/api/products/:id", async (req, res) => {
         .status(400)
         .json({ error: "Provide at least one field to update" });
     }
-
+    const productsCollection = getProductsCollection();
     const result = await productsCollection.findOneAndUpdate(
       { _id: new ObjectId(id) },
       { $set: update },
@@ -242,9 +171,9 @@ app.put("/api/products/:id", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }
-});
+}
 
-app.delete("/api/products/:id", async (req, res) => {
+async function deleteProductHandler(req, res) {
   try {
     const { id } = req.params;
 
@@ -252,6 +181,7 @@ app.delete("/api/products/:id", async (req, res) => {
       return res.status(400).json({ error: "Invalid product id" });
     }
 
+    const productsCollection = getProductsCollection();
     const result = await productsCollection.deleteOne({
       _id: new ObjectId(id),
     });
@@ -263,29 +193,12 @@ app.delete("/api/products/:id", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }
-});
+}
 
-app.get("/api/version", (req, res) => {
-  res.status(200).json({
-    version: "1.1",
-    updatedAt: new Date().toISOString(),
-  });
-});
-
-app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    status: "ok",
-  });
-});
-
-app.use((req, res) => {
-  res.status(404).json({ error: "API endpoint not found" });
-});
-
-connectDB()
-  .then(() => {
-    app.listen(PORT, "0.0.0.0");
-  })
-  .catch(() => {
-    process.exit(1);
-  });
+module.exports = {
+  listProductsHandler,
+  getProductByIdHandler,
+  createProductHandler,
+  updateProductHandler,
+  deleteProductHandler,
+};
