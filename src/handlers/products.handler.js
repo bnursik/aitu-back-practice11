@@ -115,7 +115,7 @@ async function createProductHandler(req, res) {
   }
 }
 
-async function updateProductHandler(req, res) {
+async function patchProductHandler(req, res) {
   try {
     const { id } = req.params;
 
@@ -173,6 +173,53 @@ async function updateProductHandler(req, res) {
   }
 }
 
+async function updateProductHandler(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+
+    const { name, price, category } = req.body;
+
+    if (
+      typeof name !== "string" ||
+      name.trim() === "" ||
+      typeof category !== "string" ||
+      category.trim() === "" ||
+      typeof price !== "number" ||
+      Number.isNaN(price)
+    ) {
+      return res.status(400).json({
+        error: "name, category must be strings and price must be a number",
+      });
+    }
+
+    const productsCollection = getProductsCollection();
+
+    const result = await productsCollection.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          name: name.trim(),
+          category: category.trim(),
+          price: price,
+        },
+      },
+      { returnDocument: "after" },
+    );
+
+    if (!result.value) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.status(200).json(result.value);
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 async function deleteProductHandler(req, res) {
   try {
     const { id } = req.params;
@@ -199,6 +246,7 @@ module.exports = {
   listProductsHandler,
   getProductByIdHandler,
   createProductHandler,
-  updateProductHandler,
+  patchProductHandler,
   deleteProductHandler,
+  updateProductHandler,
 };
