@@ -156,20 +156,25 @@ async function patchProductHandler(req, res) {
         .status(400)
         .json({ error: "Provide at least one field to update" });
     }
+
     const productsCollection = getProductsCollection();
-    const result = await productsCollection.findOneAndUpdate(
+
+    const updateResult = await productsCollection.updateOne(
       { _id: new ObjectId(id) },
       { $set: update },
-      { returnDocument: "after" },
     );
 
-    if (!result.value) {
+    if (updateResult.matchedCount === 0) {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    res.status(200).json(result.value);
+    const updatedProduct = await productsCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    return res.status(200).json(updatedProduct);
   } catch (err) {
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 
@@ -183,6 +188,12 @@ async function updateProductHandler(req, res) {
 
     const { name, price, category } = req.body;
 
+    if (name === undefined || price === undefined || category === undefined) {
+      return res.status(400).json({
+        error: "All fields (name, price, category) must be provided",
+      });
+    }
+
     if (
       typeof name !== "string" ||
       name.trim() === "" ||
@@ -192,7 +203,7 @@ async function updateProductHandler(req, res) {
       Number.isNaN(price)
     ) {
       return res.status(400).json({
-        error: "name, category must be strings and price must be a number",
+        error: "name, category must be non-empty strings and price must be a number",
       });
     }
 
@@ -207,7 +218,7 @@ async function updateProductHandler(req, res) {
           price: price,
         },
       },
-      { returnDocument: "after" },
+      { returnDocument: "after" }
     );
 
     if (!result.value) {
@@ -219,6 +230,7 @@ async function updateProductHandler(req, res) {
     res.status(500).json({ error: "Internal server error" });
   }
 }
+
 
 async function deleteProductHandler(req, res) {
   try {
